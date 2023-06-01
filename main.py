@@ -5,10 +5,10 @@ import pathlib
 import json
 import boto3
 import typer
+import commands as vpc_command
 
+from configs import VpcConfig, SubnetConfig
 from typer import Typer
-from configs import *
-from commands import vpc_command, efs_command
 
 app = Typer()
 local_dir = pathlib.Path("./params").resolve()
@@ -161,107 +161,6 @@ def remove_subnet(
     os.remove(local_dir.joinpath(subnet_config_file_name))
 
 
-@app.command(
-    name="configure-efs",
-    help="create an EFS to be mounted on EC2 instance"
-)
-def configure_efs(
-        profile_name: str = typer.Option(..., help="name of AWS administrator profile"),
-        efs_name: str = typer.Option(..., help="name of EFS"),
-        region: str = typer.Option(..., help="name of AWS region to create VPC"),
-):
-    efs_config = ElasticFileSystemConfig(region=region, efs_name=efs_name)
-    session = boto3.Session(profile_name=profile_name, region_name=region)
-    efs_client = session.client("efs")
-
-    logger.info(f"Create EFS '{efs_name}' in '{region}' region")
-    efs_id = efs_command.create_file_system(efs_client, efs_config)
-    efs_config.efs_id = efs_id
-
-    efs_config_file_name = _parse_config_file_name(efs_name, "efs")
-    efs_config_path = local_dir.joinpath(efs_config_file_name)
-    logger.info(f"Save EFS configuration file as {efs_config_path}")
-    with open(efs_config_path, "w") as file:
-        json.dump(efs_config.__dict__, file)
-
-
-@app.command(
-    name="remove-efs",
-    help="remove predefined EFS"
-)
-def remove_efs(
-        profile_name: str = typer.Option(..., help="name of AWS administrator profile"),
-        efs_name: str = typer.Option(..., help="name of EFS to delete"),
-):
-    efs_config_file_name = _parse_config_file_name(efs_name, "efs")
-    efs_config = _load_config(efs_config_file_name)
-    session = boto3.Session(profile_name=profile_name, region_name=efs_config.region)
-    efs_client = session.client("efs")
-
-    logger.info(f"Delete EFS '{efs_name}'")
-    efs_command.delete_file_system(efs_client, efs_config)
-
-    logger.info("Delete EFS configuration file")
-    os.remove(local_dir.joinpath(efs_config_file_name))
-
-
-@app.command(
-    name="configure-mt",
-    help="create a mount target of EFS within specific subnet"
-)
-def configure_mt(
-        profile_name: str = typer.Option(..., help="name of AWS administrator profile"),
-        efs_name: str = typer.Option(..., help="name of EFS to create mount target"),
-        subnet_name: str = typer.Option(..., help="name of subnet to create mount target"),
-):
-    efs_config_file_name = _parse_config_file_name(efs_name, "efs")
-    efs_config = _load_config(efs_config_file_name)
-    subnet_config_file_name = _parse_config_file_name(subnet_name, "subnet")
-    subnet_config = _load_config(subnet_config_file_name)
-    session = boto3.Session(profile_name=profile_name, region_name=subnet_config.region)
-    efs_client = session.client("efs")
-    mt_config = MountTargetConfig(
-        region=subnet_config.region,
-        subnet_id=subnet_config.subnet_id,
-        sg_id=subnet_config.sg_id,
-        efs_name=efs_config.efs_name,
-        efs_id=efs_config.efs_id,
-    )
-
-    logger.info(f"Create mount target of '{efs_name}' in subnet '{subnet_name}'")
-    mt_id = efs_command.create_mount_target(efs_client, subnet_config, efs_config)
-    mt_config.mt_id = mt_id
-
-    mt_name = f"{efs_name}-{subnet_name}"
-    mt_config_file_name = _parse_config_file_name(mt_name, "mt")
-    mt_config_path = local_dir.joinpath(mt_config_file_name)
-    logger.info(f"Save mount target configuration file as {mt_config_path}")
-    with open(mt_config_path, "w") as file:
-        json.dump(mt_config.__dict__, file)
-
-
-@app.command(
-    name="remove-mt",
-    help="remove a mount target from an EFS"
-)
-def remove_mt(
-        profile_name: str = typer.Option(..., help="name of AWS administrator profile"),
-        efs_name: str = typer.Option(..., help="name of EFS to remove mount target"),
-        subnet_name: str = typer.Option(..., help="name of subnet where mount target was created"),
-):
-    mt_name = f"{efs_name}-{subnet_name}"
-    mt_config_file_name = _parse_config_file_name(mt_name, "mt")
-    mt_config = _load_config(mt_config_file_name)
-    session = boto3.Session(profile_name=profile_name, region_name=mt_config.region)
-    efs_client = session.client("efs")
-
-    logger.info(f"Delete mount target '{mt_name}'")
-    efs_command.delete_mount_target(efs_client, mt_config)
-
-    logger.info("Delete mount target configuration file")
-    os.remove(local_dir.joinpath(mt_config_file_name))
-
-
 def _parse_config_file_name(resource_name: str, resource_type: str):
     return f"{resource_type.lower()}_{resource_name.replace('-', '_')}_config.json"
 
@@ -274,10 +173,6 @@ def _load_config(config_file_name: str):
             return VpcConfig.from_config(config)
         elif config_file_name.startswith("subnet"):
             return SubnetConfig.from_config(config)
-        elif config_file_name.startswith("efs"):
-            return ElasticFileSystemConfig.from_config(config)
-        elif config_file_name.startswith("mt"):
-            return MountTargetConfig.from_config(config)
 
 
 if __name__ == "__main__":
