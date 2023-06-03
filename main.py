@@ -5,7 +5,7 @@ import pathlib
 import json
 import boto3
 import typer
-import commands as vpc_command
+import commands
 
 from configs import VpcConfig, SubnetConfig
 from typer import Typer
@@ -47,15 +47,15 @@ def configure_vpc(
     ec2_client = session.client("ec2")
 
     logger.info(f"Create VPC '{vpc_name}'")
-    vpc_id = vpc_command.create_vpc(ec2_client, vpc_config)
+    vpc_id = commands.create_vpc(ec2_client, vpc_config)
     vpc_config.vpc_id = vpc_id
 
     logger.info(f"Create security group '{sg_name}' and open configured ports")
-    sg_id = vpc_command.create_vpc_security_group(ec2_client, vpc_config)
+    sg_id = commands.create_vpc_security_group(ec2_client, vpc_config)
     vpc_config.sg_id = sg_id
 
     logger.info(f"Create internet gateway '{igw_name}' and attach it to VPC")
-    igw_id = vpc_command.create_internet_gateway(ec2_client, vpc_config)
+    igw_id = commands.create_internet_gateway(ec2_client, vpc_config)
     vpc_config.igw_id = igw_id
 
     vpc_config_file_name = _parse_config_file_name(vpc_name, "vpc")
@@ -79,13 +79,13 @@ def remove_vpc(
     ec2_client = session.client("ec2")
 
     logger.info(f"Detach internet gateway '{vpc_config.igw_name}' from VPC and delete it")
-    vpc_command.delete_internet_gateway(ec2_client, vpc_config)
+    commands.delete_internet_gateway(ec2_client, vpc_config)
 
     logger.info(f"Delete corresponding security group '{vpc_config.sg_name}'")
-    vpc_command.delete_security_group(ec2_client, vpc_config)
+    commands.delete_security_group(ec2_client, vpc_config)
 
     logger.info(f"Delete VPC '{vpc_name}'")
-    vpc_command.delete_vpc(ec2_client, vpc_config)
+    commands.delete_vpc(ec2_client, vpc_config)
 
     logger.info("Delete VPC configuration file")
     os.remove(local_dir.joinpath(vpc_config_file_name))
@@ -117,15 +117,15 @@ def configure_subnet(
     )
 
     logger.info(f"Create subnet '{subnet_name}'")
-    subnet_id = vpc_command.create_subnet(ec2_client, subnet_config)
+    subnet_id = commands.create_subnet(ec2_client, subnet_config)
     subnet_config.subnet_id = subnet_id
 
     logger.info(f"Create subnet route table '{route_table_name}'")
-    rt_id = vpc_command.create_route_table(ec2_client, subnet_config, is_public)
+    rt_id = commands.create_route_table(ec2_client, subnet_config, is_public)
     subnet_config.rt_id = rt_id
 
     logger.info(f"Create association between '{subnet_name}' and '{route_table_name}'")
-    association_id = vpc_command.create_subnet_route_table_association(ec2_client, subnet_config)
+    association_id = commands.create_subnet_route_table_association(ec2_client, subnet_config)
     subnet_config.subnet_rt_association_id = association_id
 
     subnet_config_file_name = _parse_config_file_name(subnet_name, "subnet")
@@ -149,13 +149,13 @@ def remove_subnet(
     ec2_client = session.client("ec2")
 
     logger.info(f"Delete association between '{subnet_name}' and '{subnet_config.rt_name}'")
-    vpc_command.delete_subnet_route_table_association(ec2_client, subnet_config)
+    commands.delete_subnet_route_table_association(ec2_client, subnet_config)
 
     logger.info(f"Delete detached route table '{subnet_config.rt_name}'")
-    vpc_command.delete_route_table(ec2_client, subnet_config)
+    commands.delete_route_table(ec2_client, subnet_config)
 
     logger.info(f"Delete subnet '{subnet_name}'")
-    vpc_command.delete_subnet(ec2_client, subnet_config)
+    commands.delete_subnet(ec2_client, subnet_config)
 
     logger.info("Delete subnet configuration file")
     os.remove(local_dir.joinpath(subnet_config_file_name))

@@ -11,7 +11,6 @@ python3 --version  # Python 3.10.10
 python3 -m venv venv
 source venv/bin/activate
 pip3 install typer==0.9.0 boto3==1.26.140
-export PYTHONPATH=$PWD/src
 ```
 
 ## Execute
